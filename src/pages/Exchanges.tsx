@@ -1,28 +1,37 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import type { Exchange } from '../lib/types'
+import type { Exchange, Review } from '../lib/types'
 import { STATUS_COLOR, STATUS_LABEL, fmtDate, nightsBetween } from '../lib/constants'
+import { ReviewForm, Stars } from '../components/Reviews'
 
 export default function Exchanges() {
   const { session } = useAuth()
   const [list, setList] = useState<Exchange[]>([])
+  const [myReviews, setMyReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
+  const [openForm, setOpenForm] = useState<string | null>(null)
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!session) return
-    supabase
-      .from('exchanges')
-      .select('*, home:homes(*), guest:profiles!exchanges_guest_id_fkey(*), host:profiles!exchanges_host_id_fkey(*)')
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setList((data as Exchange[]) ?? [])
-        setLoading(false)
-      })
+    const [{ data: ex }, { data: rv }] = await Promise.all([
+      supabase
+        .from('exchanges')
+        .select('*, home:homes(*), guest:profiles!exchanges_guest_id_fkey(*), host:profiles!exchanges_host_id_fkey(*)')
+        .order('created_at', { ascending: false }),
+      supabase.from('reviews').select('*').eq('reviewer_id', session.user.id),
+    ])
+    setList((ex as Exchange[]) ?? [])
+    setMyReviews((rv as Review[]) ?? [])
+    setLoading(false)
   }, [session])
 
+  useEffect(() => { load() }, [load])
+
   if (!session) return <div className="py-20 text-center text-stone-500">ログインが必要です。</div>
+
+  const today = new Date().toISOString().slice(0, 10)
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-10">
@@ -37,12 +46,11 @@ export default function Exchanges() {
         {list.map((ex) => {
           const isGuest = ex.guest_id === session.user.id
           const other = isGuest ? ex.host : ex.guest
+          const stayEnded = ex.end_date <= today
+          const reviewable = (ex.status === 'completed' || (ex.status === 'finalized' && stayEnded))
+          const myReview = myReviews.find((r) => r.exchange_id === ex.id)
           return (
-            <Link
-              key={ex.id}
-              to={`/messages/${ex.conversation_id}`}
-              className="block rounded-2xl border border-stone-200 p-5 hover:shadow-md transition-shadow bg-white"
-            >
+            <div key={ex.id} className="rounded-2xl border border-stone-200 p-5 bg-white">
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${STATUS_COLOR[ex.status]}`}>
                   {STATUS_LABEL[ex.status]}
@@ -51,13 +59,38 @@ export default function Exchanges() {
                   {isGuest ? 'ゲストとして滞在' : 'ホストとして受け入れ'}
                 </span>
               </div>
-              <div className="mt-2 font-bold">{ex.home?.title}</div>
+              <Link to={`/messages/${ex.conversation_id}`} className="mt-2 block font-bold hover:text-brand-700">
+                {ex.home?.title}
+              </Link>
               <div className="mt-1 text-sm text-stone-500">
                 {fmtDate(ex.start_date)} 〜 {fmtDate(ex.end_date)}({nightsBetween(ex.start_date, ex.end_date)}泊・{ex.guests_count}名)
                 ・相手: {other?.display_name}
                 ・{ex.exchange_type === 'gp' ? `${ex.gp_amount} GP` : '相互交換'}
               </div>
-            </Link>
+
+              {reviewable && (
+                <div className="mt-3 pt-3 border-t border-stone-100">
+                  {myReview ? (
+                    <div className="flex items-center gap-2 text-sm text-stone-600">
+                      <span>あなたのレビュー:</span>
+                      <Stars value={myReview.rating} size="text-sm" />
+                      <span className="text-xs text-stone-400">
+                        (双方の投稿、または交換終了40日後に公開されます)
+                      </span>
+                    </div>
+                  ) : openForm === ex.id ? (
+                    <ReviewForm exchangeId={ex.id} onDone={() => { setOpenForm(null); load() }} />
+                  ) : (
+                    <button
+                      onClick={() => setOpenForm(ex.id)}
+                      className="px-4 py-2 rounded-full bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 cursor-pointer"
+                    >
+                      ★ レビューを書く
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )
         })}
       </div>

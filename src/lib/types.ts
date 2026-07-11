@@ -83,6 +83,23 @@ export type Exchange = {
   guest?: Profile
 }
 
+export type Review = {
+  id: string
+  exchange_id: string
+  home_id: string
+  reviewer_id: string
+  reviewee_id: string
+  reviewer_role: 'guest' | 'host'
+  rating: number
+  cleanliness: number | null
+  communication: number | null
+  accuracy: number | null
+  body: string
+  reply: string | null
+  created_at: string
+  reviewer?: Profile
+}
+
 export type LedgerEntry = {
   id: string
   user_id: string

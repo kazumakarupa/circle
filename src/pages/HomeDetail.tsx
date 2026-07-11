@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import type { Availability, Home, Profile } from '../lib/types'
+import type { Availability, Home, Profile, Review } from '../lib/types'
 import { EXCHANGE_TYPE_LABEL, fmtDate, nightsBetween } from '../lib/constants'
+import { ReviewCard, Stars } from '../components/Reviews'
 
 export default function HomeDetail() {
   const { id } = useParams()
@@ -12,6 +13,7 @@ export default function HomeDetail() {
   const [home, setHome] = useState<Home | null>(null)
   const [owner, setOwner] = useState<Profile | null>(null)
   const [avails, setAvails] = useState<Availability[]>([])
+  const [reviews, setReviews] = useState<Review[]>([])
   const [notFound, setNotFound] = useState(false)
 
   // request form
@@ -31,6 +33,13 @@ export default function HomeDetail() {
       supabase.from('profiles').select('*').eq('id', data.owner_id).single().then(({ data: p }) => setOwner(p))
     })
     supabase.from('availabilities').select('*').eq('home_id', id).order('start_date').then(({ data }) => setAvails(data ?? []))
+    supabase
+      .from('reviews')
+      .select('*, reviewer:profiles!reviews_reviewer_id_fkey(*)')
+      .eq('home_id', id)
+      .eq('reviewer_role', 'guest')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setReviews((data as Review[]) ?? []))
   }, [id])
 
   if (notFound) return <div className="max-w-3xl mx-auto px-4 py-20 text-center text-stone-500">このおうちは見つかりませんでした。</div>
@@ -151,6 +160,27 @@ export default function HomeDetail() {
               <li>{home.smoking_allowed ? '✅ 喫煙可' : '❌ 禁煙'}</li>
               {home.rules_note && <li className="whitespace-pre-wrap pt-1">{home.rules_note}</li>}
             </ul>
+          </Section>
+
+          <Section title={`レビュー${reviews.length > 0 ? `(${reviews.length}件)` : ''}`}>
+            {reviews.length === 0 ? (
+              <p className="text-sm text-stone-500">まだレビューはありません。</p>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 mb-4">
+                  <Stars value={reviews.reduce((s, r) => s + r.rating, 0) / reviews.length} />
+                  <span className="font-bold">
+                    {(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)}
+                  </span>
+                  <span className="text-sm text-stone-500">/ 5.0(ゲストからの評価)</span>
+                </div>
+                <div className="space-y-3">
+                  {reviews.map((r) => (
+                    <ReviewCard key={r.id} review={r} />
+                  ))}
+                </div>
+              </>
+            )}
           </Section>
 
           <Section title="泊まれる日程">
