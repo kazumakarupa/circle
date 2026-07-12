@@ -1,7 +1,10 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import Header from './components/Header'
+import Footer from './components/Footer'
 import Landing from './pages/Landing'
+import Guide from './pages/Guide'
+import Safety from './pages/Safety'
 import { Login, Signup } from './pages/Auth'
 import Search from './pages/Search'
 import HomeDetail from './pages/HomeDetail'
@@ -27,7 +30,10 @@ export default function App() {
           <Route path="/messages/:conversationId" element={<Messages />} />
           <Route path="/exchanges" element={<Exchanges />} />
           <Route path="/account" element={<Account />} />
+          <Route path="/guide" element={<Guide />} />
+          <Route path="/safety" element={<Safety />} />
         </Routes>
+        <Footer />
       </BrowserRouter>
     </AuthProvider>
   )

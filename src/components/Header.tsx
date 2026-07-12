@@ -34,6 +34,7 @@ export default function Header() {
 
         {/* PC nav */}
         <nav className="ml-auto hidden md:flex items-center gap-1 lg:gap-2 text-sm font-medium">
+          <Link to="/guide" className={linkCls}>しくみ</Link>
           <Link to="/search" className={linkCls}>家をさがす</Link>
           {session ? (
             <>
@@ -78,6 +79,8 @@ export default function Header() {
       {/* SPメニュー */}
       {open && (
         <nav className="md:hidden border-t border-stone-100 bg-white px-4 py-2 flex flex-col text-sm font-medium">
+          <MenuLink to="/guide" onClick={() => setOpen(false)}>しくみ・料金</MenuLink>
+          <MenuLink to="/safety" onClick={() => setOpen(false)}>安心への取り組み</MenuLink>
           <MenuLink to="/search" onClick={() => setOpen(false)}>家をさがす</MenuLink>
           {session ? (
             <>

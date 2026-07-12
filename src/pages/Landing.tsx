@@ -107,11 +107,6 @@ export default function Landing() {
           ))}
         </div>
       </section>
-
-      <footer className="border-t border-stone-200 py-10 text-center text-sm text-stone-500">
-        <Logo className="text-xl" />
-        <p className="mt-2">© 2026 circle — 日本発のホームエクスチェンジ</p>
-      </footer>
     </div>
   )
 }
