@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import type { Conversation, Exchange, Message } from '../lib/types'
 import { STATUS_COLOR, STATUS_LABEL, fmtDate, nightsBetween } from '../lib/constants'
+import { ReportButton } from '../components/Trust'
 
 export default function Messages() {
   const { conversationId } = useParams()
@@ -13,10 +14,13 @@ export default function Messages() {
   const [exchanges, setExchanges] = useState<Exchange[]>([])
   const [body, setBody] = useState('')
   const [error, setError] = useState('')
+  const [pairBlocked, setPairBlocked] = useState(false)
+  const [blockedByMe, setBlockedByMe] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const uid = session?.user.id
   const active = convs.find((c) => c.id === conversationId)
+  const otherId = active ? (active.guest_id === uid ? active.host_id : active.guest_id) : null
 
   const loadConvs = useCallback(async () => {
     if (!uid) return
@@ -37,8 +41,19 @@ export default function Messages() {
     setExchanges((ex as Exchange[]) ?? [])
   }, [conversationId])
 
+  const loadBlockState = useCallback(async () => {
+    if (!uid || !otherId) { setPairBlocked(false); setBlockedByMe(false); return }
+    const [{ data: pair }, { data: mine }] = await Promise.all([
+      supabase.rpc('is_blocked_pair', { _a: uid, _b: otherId }),
+      supabase.from('blocks').select('blocked_id').eq('blocker_id', uid).eq('blocked_id', otherId).maybeSingle(),
+    ])
+    setPairBlocked(!!pair)
+    setBlockedByMe(!!mine)
+  }, [uid, otherId])
+
   useEffect(() => { loadConvs() }, [loadConvs])
   useEffect(() => { loadThread() }, [loadThread])
+  useEffect(() => { loadBlockState() }, [loadBlockState])
   useEffect(() => { bottomRef.current?.scrollIntoView() }, [msgs.length])
 
   if (!session) return <div className="py-20 text-center text-stone-500">ログインが必要です。</div>
@@ -56,6 +71,17 @@ export default function Messages() {
     if (error) setError(error.message)
     await loadThread()
     refreshBalance()
+  }
+
+  async function toggleBlock() {
+    if (!uid || !otherId) return
+    if (blockedByMe) {
+      await supabase.from('blocks').delete().eq('blocker_id', uid).eq('blocked_id', otherId)
+    } else {
+      if (!confirm('このユーザーをブロックしますか?ブロック中は新しいメッセージや交換リクエストのやり取りができなくなります。')) return
+      await supabase.from('blocks').insert({ blocker_id: uid, blocked_id: otherId })
+    }
+    loadBlockState()
   }
 
   return (
@@ -101,7 +127,21 @@ export default function Messages() {
                 <div className="font-bold text-sm">{(active.guest_id === uid ? active.host : active.guest)?.display_name}</div>
                 <Link to={`/homes/${active.home_id}`} className="text-xs text-brand-700 hover:underline">{active.home?.title}</Link>
               </div>
+              <div className="ml-auto flex items-center gap-3">
+                <ReportButton targetUserId={otherId ?? undefined} homeId={active.home_id} />
+                <button onClick={toggleBlock} className="text-xs text-stone-400 hover:text-red-600 hover:underline cursor-pointer">
+                  {blockedByMe ? '🚫 ブロック解除' : '🚫 ブロック'}
+                </button>
+              </div>
             </div>
+
+            {pairBlocked && (
+              <div className="px-5 py-3 bg-red-50 border-b border-red-100 text-sm text-red-700">
+                {blockedByMe
+                  ? 'このユーザーをブロック中です。新しいメッセージや交換リクエストは送れません。'
+                  : 'この相手とは現在やり取りできません。'}
+              </div>
+            )}
 
             {/* exchange panel */}
             {exchanges.length > 0 && (
@@ -168,17 +208,23 @@ export default function Messages() {
               <div ref={bottomRef} />
             </div>
 
-            <form onSubmit={send} className="p-3 border-t border-stone-200 flex gap-2 bg-white">
-              <input
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                placeholder="メッセージを入力…"
-                className="flex-1 rounded-full border border-stone-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-              <button className="px-5 py-2.5 rounded-full bg-brand-700 text-white font-bold text-sm hover:bg-brand-800 cursor-pointer">
-                送信
-              </button>
-            </form>
+            {pairBlocked ? (
+              <div className="p-4 border-t border-stone-200 text-center text-sm text-stone-400 bg-stone-50">
+                ブロック中のためメッセージを送信できません
+              </div>
+            ) : (
+              <form onSubmit={send} className="p-3 border-t border-stone-200 flex gap-2 bg-white">
+                <input
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  placeholder="メッセージを入力…"
+                  className="flex-1 rounded-full border border-stone-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                <button className="px-5 py-2.5 rounded-full bg-brand-700 text-white font-bold text-sm hover:bg-brand-800 cursor-pointer">
+                  送信
+                </button>
+              </form>
+            )}
           </>
         )}
       </section>

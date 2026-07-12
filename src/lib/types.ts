@@ -6,6 +6,7 @@ export type Profile = {
   languages: string[]
   prefecture: string
   city: string
+  phone_verified: boolean
   created_at: string
 }
 

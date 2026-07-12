@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import type { Home, LedgerEntry } from '../lib/types'
 import { PREFECTURES } from '../lib/constants'
+import { VerifiedBadges } from '../components/Trust'
 
 export default function Account() {
   const { session, profile, gpBalance, refreshProfile } = useAuth()
@@ -84,6 +85,16 @@ export default function Account() {
         )}
       </section>
 
+      {/* verification */}
+      <section>
+        <h2 className="font-bold text-lg mb-3">本人確認</h2>
+        <div className="rounded-2xl border border-stone-200 p-6">
+          <VerifiedBadges profile={profile} />
+          <p className="mt-2 text-xs text-stone-400">認証バッジはあなたの掲載ページに表示され、交換の成立率を高めます。</p>
+          {profile && !profile.phone_verified && <PhoneVerification onVerified={refreshProfile} />}
+        </div>
+      </section>
+
       {/* profile */}
       <section>
         <h2 className="font-bold text-lg mb-3">プロフィール</h2>
@@ -134,6 +145,88 @@ export default function Account() {
           ))}
         </div>
       </section>
+    </div>
+  )
+}
+
+function PhoneVerification({ onVerified }: { onVerified: () => void }) {
+  const [phone, setPhone] = useState('')
+  const [token, setToken] = useState('')
+  const [step, setStep] = useState<'input' | 'otp'>('input')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  function toE164(p: string) {
+    const digits = p.replace(/[^0-9]/g, '')
+    if (p.trim().startsWith('+')) return '+' + digits
+    if (digits.startsWith('0')) return '+81' + digits.slice(1)
+    return '+' + digits
+  }
+
+  async function sendOtp(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    const { error } = await supabase.auth.updateUser({ phone: toE164(phone) })
+    setBusy(false)
+    if (error) {
+      setError('SMSを送信できませんでした。現在SMS認証は準備中の可能性があります(' + error.message + ')')
+      return
+    }
+    setStep('otp')
+  }
+
+  async function verify(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    const { error } = await supabase.auth.verifyOtp({ phone: toE164(phone), token: token.trim(), type: 'phone_change' })
+    setBusy(false)
+    if (error) {
+      setError('認証コードが正しくありません(' + error.message + ')')
+      return
+    }
+    onVerified()
+  }
+
+  return (
+    <div className="mt-4 pt-4 border-t border-stone-100">
+      {step === 'input' ? (
+        <form onSubmit={sendOtp} className="flex flex-wrap items-end gap-3">
+          <label className="block text-sm flex-1 min-w-52">
+            <span className="font-medium text-stone-600">携帯電話番号(SMS認証)</span>
+            <input
+              type="tel"
+              required
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="090-1234-5678"
+              className={inp}
+            />
+          </label>
+          <button disabled={busy} className="px-5 py-2.5 rounded-full bg-brand-700 text-white text-sm font-bold hover:bg-brand-800 disabled:opacity-50 cursor-pointer">
+            認証コードを送る
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={verify} className="flex flex-wrap items-end gap-3">
+          <label className="block text-sm flex-1 min-w-52">
+            <span className="font-medium text-stone-600">SMSに届いた6桁のコード</span>
+            <input
+              required
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="123456"
+              inputMode="numeric"
+              className={inp}
+            />
+          </label>
+          <button disabled={busy} className="px-5 py-2.5 rounded-full bg-brand-700 text-white text-sm font-bold hover:bg-brand-800 disabled:opacity-50 cursor-pointer">
+            認証する
+          </button>
+        </form>
+      )}
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
     </div>
   )
 }

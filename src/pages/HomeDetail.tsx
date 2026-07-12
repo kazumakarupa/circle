@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import type { Availability, Home, Profile, Review } from '../lib/types'
 import { EXCHANGE_TYPE_LABEL, fmtDate, nightsBetween } from '../lib/constants'
 import { ReviewCard, Stars } from '../components/Reviews'
+import { ReportButton, VerifiedBadges } from '../components/Trust'
 
 export default function HomeDetail() {
   const { id } = useParams()
@@ -216,6 +217,7 @@ export default function HomeDetail() {
               </div>
             </div>
             {owner?.bio && <p className="mt-3 text-sm text-stone-600 leading-relaxed">{owner.bio}</p>}
+            <VerifiedBadges profile={owner} className="mt-3 pt-3 border-t border-stone-100" />
           </div>
 
           {isOwner ? (
@@ -272,6 +274,11 @@ export default function HomeDetail() {
             <Link to="/login" className="block text-center w-full py-3 rounded-full bg-brand-700 text-white font-bold hover:bg-brand-800">
               ログインしてリクエスト
             </Link>
+          )}
+          {session && !isOwner && (
+            <div className="text-center">
+              <ReportButton targetUserId={home.owner_id} homeId={home.id} label="⚑ この掲載を通報する" />
+            </div>
           )}
         </aside>
       </div>
